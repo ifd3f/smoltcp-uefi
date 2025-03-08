@@ -23,13 +23,13 @@ use crate::convert::u2s_mac_address;
 /// let snp = boot::open_protocol_exclusive::<SimpleNetwork>(handle)?;
 /// snp.start()?;
 /// snp.initialize(0, 0);
-/// 
+///
 /// let mut device = SnpDevice::new(snp);
 /// # }
 /// ```
-/// 
+///
 /// # Implementation notes
-/// 
+///
 /// Note that currently, this does no allocations whatsoever. On every transmit
 /// and receive, a new buffer is created on-stack. This is obviously very inefficient,
 /// but this is also very temporary.
@@ -39,7 +39,7 @@ pub struct SnpDevice<'a> {
 
 impl<'a> SnpDevice<'a> {
     /// Create an [SnpDevice] based on the provided [SimpleNetwork].
-    /// 
+    ///
     /// Note that this will set receive filters on the [SimpleNetwork] as well.
     /// This may error if that fails.
     pub fn new(snp: &'a SimpleNetwork) -> Result<Self, uefi::Error> {
