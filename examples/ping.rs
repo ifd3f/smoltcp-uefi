@@ -17,17 +17,13 @@ use smoltcp::{
     },
 };
 use smoltcp_uefi::{device::SnpDevice, time::shitty_now_from_processor_clock};
-use uefi::{
-    boot::ScopedProtocol,
-    prelude::*,
-    proto::network::{MacAddress, snp::SimpleNetwork},
-};
+use uefi::{boot::ScopedProtocol, prelude::*, proto::network::snp::SimpleNetwork};
 
 #[entry]
 fn main() -> Status {
     uefi::helpers::init().unwrap();
 
-    info!("hello world from astridos-bootos!");
+    info!("hello world from ping example!");
 
     let (h, snp) = init_network().unwrap();
     let snp = snp.get().unwrap();
@@ -39,7 +35,7 @@ fn main() -> Status {
 }
 
 fn send_loop(snp: &SimpleNetwork) {
-    let mut device = SnpDevice::new(snp);
+    let mut device = SnpDevice::new(snp).unwrap();
     let mut iface = Interface::new(
         Config::new(HardwareAddress::Ethernet(device.permanent_address())),
         &mut device,
@@ -126,19 +122,11 @@ fn send_loop(snp: &SimpleNetwork) {
     }
 }
 
-fn make_mac_address(mac: [u8; 6]) -> MacAddress {
-    let mut out = MacAddress([0; 32]);
-    for i in 0..6 {
-        out.0[i] = mac[i];
-    }
-    out
-}
-
 fn init_network() -> uefi::Result<(Handle, ScopedProtocol<SimpleNetwork>)> {
     let handle = boot::get_handle_for_protocol::<SimpleNetwork>()?;
     let snp = boot::open_protocol_exclusive::<SimpleNetwork>(handle)?;
     snp.start()?;
-    snp.initialize(0, 0);
+    snp.initialize(0, 0)?;
     Ok((handle, snp))
 }
 
