@@ -24,7 +24,7 @@ use crate::convert::u2s_mac_address;
 /// snp.start()?;
 /// snp.initialize(0, 0);
 ///
-/// let mut device = SnpDevice::new(snp);
+/// let mut device = SnpDevice::new(snp)?;
 /// # }
 /// ```
 ///
