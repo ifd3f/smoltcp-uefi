@@ -1,14 +1,18 @@
 [package]
 name = "smoltcp-uefi"
+version = "0.1.0"
 description = "Utilities for running smoltcp inside a UEFI environment"
 authors = ["Astrid Yu <astrid@astrid.tech>"]
 keywords = ["ip", "tcp", "udp", "ethernet", "network", "uefi", "efi"]
 license = "MIT"
 repository = "https://github.com/ifd3f/smoltcp_uefi"
-version = "0.1.0"
 edition = "2024"
 
 [dependencies]
 log = "0.4.26"
+smoltcp = { version = "0.12.0", default-features = false }
+uefi = { version = "0.34.1", default-features = false }
+
+[dev-dependencies]
 smoltcp = { version = "0.12.0", default-features = false, features = ["log", "proto-ipv4", "proto-ipv6", "socket-icmp", "socket-udp", "socket-tcp", "socket-dhcpv4", "socket-dns", "multicast"] }
-uefi = { version = "0.34.1", features = ["alloc", "global_allocator", "logger", "panic_handler", "unstable"] }
+uefi = { version = "0.34.1", features = ["logger", "panic_handler", "unstable"] }
