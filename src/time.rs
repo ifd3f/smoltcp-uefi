@@ -52,7 +52,7 @@ impl<'a> TimestampClock<'a> {
 pub fn shitty_now_from_processor_clock() -> Instant {
     #[cfg(target_arch = "x86_64")]
     unsafe {
-        return Instant::from_micros(core::arch::x86_64::_rdtsc() as i64);
+        Instant::from_micros(core::arch::x86_64::_rdtsc() as i64)
     }
 
     #[cfg(target_arch = "aarch64")]

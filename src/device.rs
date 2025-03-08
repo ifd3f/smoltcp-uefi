@@ -1,6 +1,6 @@
 //! This module contains [SnpDevice] and helpers for it.
 
-use log::{error, trace};
+use log::error;
 use smoltcp::{
     phy::{Device, DeviceCapabilities, Medium},
     wire::EthernetAddress,
@@ -106,7 +106,7 @@ impl<'a> Device for SnpDevice<'a> {
     }
 
     fn transmit(&mut self, _timestamp: smoltcp::time::Instant) -> Option<Self::TxToken<'_>> {
-        Some(SnpTxToken { snp: &self.snp })
+        Some(SnpTxToken { snp: self.snp })
     }
 
     fn capabilities(&self) -> smoltcp::phy::DeviceCapabilities {
