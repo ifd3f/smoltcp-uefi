@@ -3,7 +3,10 @@ use smoltcp::{
     phy::{Device, DeviceCapabilities, Medium},
     wire::EthernetAddress,
 };
-use uefi::proto::network::snp::{InterruptStatus, SimpleNetwork};
+use uefi::{
+    Status,
+    proto::network::snp::{ReceiveFlags, SimpleNetwork},
+};
 
 use crate::convert::u2s_mac_address;
 
@@ -16,6 +19,14 @@ pub struct SnpDevice<'a> {
 
 impl<'a> SnpDevice<'a> {
     pub fn new(snp: &'a SimpleNetwork) -> Self {
+        snp.receive_filters(
+            ReceiveFlags::UNICAST | ReceiveFlags::MULTICAST | ReceiveFlags::BROADCAST,
+            ReceiveFlags::empty(),
+            false,
+            None,
+        )
+        .expect("Failed to set receive filters");
+
         Self { snp }
     }
 
@@ -50,23 +61,26 @@ impl<'a> Device for SnpDevice<'a> {
         &mut self,
         _timestamp: smoltcp::time::Instant,
     ) -> Option<(Self::RxToken<'_>, Self::TxToken<'_>)> {
-        // TODO
-
-        /*
         let mut rx = SnpRxToken {
             packet: [0; 1536],
             size: 0,
         };
-        let tx = SnpRxToken { snp: &self.snp };
-        match rx_mac_frame(self.snp, &mut rx.packet) {
-            Ok(size) => {
-                rx.size = size;
-                Some((rx, tx))
-            }
-            Err(_) => None,
-        } */
 
-        None
+        match self.snp.receive(&mut rx.packet, None, None, None, None) {
+            Ok(size) => {
+                trace!("got packet of size {}: {:x?}", size, &rx.packet[..size]);
+                rx.size = size;
+                Some((rx, SnpTxToken { snp: self.snp }))
+            }
+            Err(e) if e.status() == Status::NOT_READY => {
+                // NOT_READY indicates no packets received yet.
+                None
+            }
+            Err(e) => {
+                error!("error during rx: {e}");
+                None
+            }
+        }
     }
 
     fn transmit(&mut self, _timestamp: smoltcp::time::Instant) -> Option<Self::TxToken<'_>> {
@@ -110,12 +124,10 @@ impl<'a> smoltcp::phy::TxToken for SnpTxToken<'a> {
 
         trace!("Transmitting {:x?}", packet);
 
-        self.snp.get_interrupt_status().unwrap();
-
         self.snp
             .transmit(0, packet, None, None, None)
             .inspect_err(|e| {
-                error!("error during tx! {e}");
+                error!("error during tx: {e}");
             })
             .ok();
 
