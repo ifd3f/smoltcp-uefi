@@ -13,21 +13,42 @@ use crate::convert::u2s_mac_address;
 /// A smoltcp [Device] based on a uefi [SimpleNetwork].
 ///
 /// This device assumes that your [SimpleNetwork] has already been initialized.
+/// Here's an example of how to do that:
+///
+/// ```no_run
+/// # fn main() -> Result<(), uefi::Error> {
+/// let handle = boot::get_handle_for_protocol::<SimpleNetwork>()?;
+/// let snp = boot::open_protocol_exclusive::<SimpleNetwork>(handle)?;
+/// snp.start()?;
+/// snp.initialize(0, 0);
+/// 
+/// let mut device = SnpDevice::new(snp);
+/// # }
+/// ```
+/// 
+/// # Implementation notes
+/// 
+/// Note that currently, this does no allocations whatsoever. On every transmit
+/// and receive, a new buffer is created on-stack. This is obviously very inefficient,
+/// but this is also very temporary.
 pub struct SnpDevice<'a> {
     snp: &'a SimpleNetwork,
 }
 
 impl<'a> SnpDevice<'a> {
-    pub fn new(snp: &'a SimpleNetwork) -> Self {
+    /// Create an [SnpDevice] based on the provided [SimpleNetwork].
+    /// 
+    /// Note that this will set receive filters on the [SimpleNetwork] as well.
+    /// This may error if that fails.
+    pub fn new(snp: &'a SimpleNetwork) -> Result<Self, uefi::Error> {
         snp.receive_filters(
             ReceiveFlags::UNICAST | ReceiveFlags::MULTICAST | ReceiveFlags::BROADCAST,
             ReceiveFlags::empty(),
             false,
             None,
-        )
-        .expect("Failed to set receive filters");
+        )?;
 
-        Self { snp }
+        Ok(Self { snp })
     }
 
     /// Get the current MAC address configured on the underlying [SimpleNetwork].

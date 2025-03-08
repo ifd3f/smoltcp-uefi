@@ -1,3 +1,7 @@
+//! IPv4 ping example.
+//!
+//! Much of this code was borrowed from [the smoltcp ping example](https://github.com/smoltcp-rs/smoltcp/blob/main/examples/ping.rs).
+
 #![no_main]
 #![no_std]
 
@@ -106,6 +110,7 @@ fn send_loop(snp: &SimpleNetwork) {
 
         info!("tx {}", sent_packets);
 
+        // poll repeatedly
         loop {
             let result = iface.poll(shitty_now_from_processor_clock(), &mut device, &mut sockets);
 

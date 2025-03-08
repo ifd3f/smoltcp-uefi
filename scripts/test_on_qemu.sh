@@ -1,20 +1,25 @@
 #!/usr/bin/env bash
 
-# Helper script to test the ping example on a QEMU VM.
+# Helper script to build and run the ping example on a QEMU VM.
+#
 # Open up Wireshark, run this script, and watch the packets go by.
+# Modifications may be required for your system :).
 # 
 # Prerequisites:
-# - You should copy OVMF_CODE and OVMF_VARS.fd into the working directory
-#   before running this.
+# - You should copy OVMF_CODE.fd and OVMF_VARS.fd into the working directory
+#   before running this. In most systems they're under /usr/share/OVMF, but on
+#   NixOS you can use get_ovmf_from_nix.sh
 # - This assumes you already have a bridge set up named virbr0.
 
 set -euxo pipefail
 
+example=ping
+
 # set up an esp as a VVFAT directory
-cargo build --example ping --target x86_64-unknown-uefi --release
+cargo build --example "$example" --target x86_64-unknown-uefi --release
 rm -rf esp
 mkdir -p esp/efi/boot
-cp -r target/x86_64-unknown-uefi/release/examples/ping.efi esp/efi/boot/bootx64.efi
+cp -r "target/x86_64-unknown-uefi/release/examples/$example.efi" esp/efi/boot/bootx64.efi
 
 # launch!
 sudo qemu-system-x86_64 \
@@ -23,4 +28,7 @@ sudo qemu-system-x86_64 \
     -drive if=pflash,format=raw,readonly=on,file=OVMF_VARS.fd \
     -nic bridge,mac=52:54:00:69:69:69,br=virbr0 \
     -drive format=raw,file=fat:rw:esp
-    # -drive if=virtio,file=ipxe.iso # test if networking works like, at all
+
+    # if it doesn't appear to output packets, you can use an ipxe image instead (https://ipxe.org/)
+    # to test if networking works sans smoltcp-rs
+    # -drive if=virtio,file=ipxe.iso 
