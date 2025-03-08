@@ -20,7 +20,10 @@ use smoltcp_uefi::{device::SnpDevice, time::shitty_now_from_processor_clock};
 use uefi::{
     boot::ScopedProtocol,
     prelude::*,
-    proto::network::{MacAddress, snp::SimpleNetwork},
+    proto::network::{
+        MacAddress,
+        snp::{InterruptStatus, SimpleNetwork},
+    },
 };
 
 #[entry]
@@ -31,7 +34,51 @@ fn main() -> Status {
 
     let (h, snp) = init_network().unwrap();
     let snp = snp.get().unwrap();
-    print_snp_status(&h, snp);
+
+    let mut sent_packets = 0u64;
+    for _ in 0..5 {
+        info!("tx {}", sent_packets);
+
+        let payload = b"\xff\xff\xff\xff\xff\xff\
+            \x52\x54\x00\x68\x68\x68\
+            \x08\x00
+            \0\0\0\0\0\0\0\0\0\0\0\0\0\0\
+            \x45\x00\
+            \x00\x21\
+            \x00\x01\
+            \x00\x00\
+            \x10\
+            \x11\
+            \x07\x6a\
+            \xc0\xa8\x11\x0f\
+            \xc0\xa8\x11\x02\
+            \x54\x45\
+            \x54\x44\
+            \x00\x0d\
+            \xa9\xe4\
+            \x04\x01\x02\x03\x04";
+
+        let dest_addr = MacAddress([0xffu8; 32]);
+        assert!(
+            !snp.get_interrupt_status()
+                .unwrap()
+                .contains(InterruptStatus::TRANSMIT)
+        );
+
+        // Send the frame
+        snp.transmit(0, payload, None, None, None)
+            .expect("Failed to transmit frame");
+
+        info!("Waiting for the transmit");
+        while !snp
+            .get_interrupt_status()
+            .unwrap()
+            .contains(InterruptStatus::TRANSMIT)
+        {}
+
+        sent_packets += 1;
+        boot::stall(1_000000);
+    }
 
     send_loop(snp);
 
