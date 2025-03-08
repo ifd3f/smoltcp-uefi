@@ -35,7 +35,7 @@ fn main() -> Status {
 }
 
 fn send_loop(snp: &SimpleNetwork) {
-    let mut device = SnpDevice::new(snp).unwrap();
+    let mut device = SnpDevice::<1536>::new(snp).unwrap();
     let mut iface = Interface::new(
         Config::new(HardwareAddress::Ethernet(device.permanent_address())),
         &mut device,

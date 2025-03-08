@@ -1,5 +1,7 @@
 //! This module contains [SnpDevice] and helpers for it.
 
+use core::cmp::min;
+
 use log::error;
 use smoltcp::{
     phy::{Device, DeviceCapabilities, Medium},
@@ -11,6 +13,9 @@ use uefi::{
 };
 
 use crate::convert::u2s_mac_address;
+
+/// The default `MAX_PACKET` parameter for [SnpDevice]s.
+pub const DEFAULT_MAX_PACKET: usize = 1500;
 
 /// A smoltcp [Device] based on a uefi [SimpleNetwork].
 ///
@@ -33,11 +38,16 @@ use crate::convert::u2s_mac_address;
 /// Note that currently, this does no allocations whatsoever. On every transmit
 /// and receive, a new buffer is created on-stack. This is obviously very inefficient,
 /// but this is also very temporary.
-pub struct SnpDevice<'a> {
+///
+/// To adjust how big this on-stack buffer is, you can set the `MAX_PACKET` parameter,
+/// which is by default set to [`DEFAULT_MAX_PACKET`]. Note that if you set this parameter
+/// lower than the actual packet size of the [SimpleNetwork], advertised capabilities
+/// in [`Device::capabilities`] will be adjusted to match.
+pub struct SnpDevice<'a, const MAX_PACKET: usize = DEFAULT_MAX_PACKET> {
     snp: &'a SimpleNetwork,
 }
 
-impl<'a> SnpDevice<'a> {
+impl<'a, const MAX_PACKET: usize> SnpDevice<'a, MAX_PACKET> {
     /// Create an [SnpDevice] based on the provided [SimpleNetwork].
     ///
     /// Note that this will set receive filters on the [SimpleNetwork] as well.
@@ -69,14 +79,14 @@ impl<'a> SnpDevice<'a> {
     }
 }
 
-impl<'a> Device for SnpDevice<'a> {
+impl<'a, const MAX_PACKET: usize> Device for SnpDevice<'a, MAX_PACKET> {
     type RxToken<'b>
-        = SnpRxToken
+        = SnpRxToken<MAX_PACKET>
     where
         Self: 'b;
 
     type TxToken<'b>
-        = SnpTxToken<'b>
+        = SnpTxToken<'b, MAX_PACKET>
     where
         Self: 'b;
 
@@ -85,7 +95,7 @@ impl<'a> Device for SnpDevice<'a> {
         _timestamp: smoltcp::time::Instant,
     ) -> Option<(Self::RxToken<'_>, Self::TxToken<'_>)> {
         let mut rx = SnpRxToken {
-            packet: [0; 1536],
+            packet: [0; MAX_PACKET],
             size: 0,
         };
 
@@ -112,17 +122,17 @@ impl<'a> Device for SnpDevice<'a> {
     fn capabilities(&self) -> smoltcp::phy::DeviceCapabilities {
         let mut caps = DeviceCapabilities::default();
         caps.medium = Medium::Ethernet;
-        caps.max_transmission_unit = self.snp.mode().max_packet_size as usize;
+        caps.max_transmission_unit = min(self.snp.mode().max_packet_size as usize, MAX_PACKET);
         caps
     }
 }
 
-pub struct SnpRxToken {
-    packet: [u8; 1536],
+pub struct SnpRxToken<const MAX_PACKET: usize> {
+    packet: [u8; MAX_PACKET],
     size: usize,
 }
 
-impl smoltcp::phy::RxToken for SnpRxToken {
+impl<const MAX_PACKET: usize> smoltcp::phy::RxToken for SnpRxToken<MAX_PACKET> {
     fn consume<R, F>(self, f: F) -> R
     where
         F: FnOnce(&[u8]) -> R,
@@ -131,16 +141,16 @@ impl smoltcp::phy::RxToken for SnpRxToken {
     }
 }
 
-pub struct SnpTxToken<'a> {
+pub struct SnpTxToken<'a, const MAX_PACKET: usize> {
     snp: &'a SimpleNetwork,
 }
 
-impl<'a> smoltcp::phy::TxToken for SnpTxToken<'a> {
+impl<'a, const MAX_PACKET: usize> smoltcp::phy::TxToken for SnpTxToken<'a, MAX_PACKET> {
     fn consume<R, F>(self, len: usize, f: F) -> R
     where
         F: FnOnce(&mut [u8]) -> R,
     {
-        let mut buf = [0u8; 1536];
+        let mut buf = [0u8; MAX_PACKET];
         let packet = &mut buf[..len];
         let result = f(packet);
 
