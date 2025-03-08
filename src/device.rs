@@ -1,3 +1,5 @@
+//! This module contains [SnpDevice] and helpers for it.
+
 use log::{error, trace};
 use smoltcp::{
     phy::{Device, DeviceCapabilities, Medium},

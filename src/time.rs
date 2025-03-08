@@ -1,3 +1,5 @@
+//! Helpers for working with smoltcp's time utilities inside uefi.
+
 use smoltcp::time::Instant;
 use uefi::proto::misc::Timestamp;
 
