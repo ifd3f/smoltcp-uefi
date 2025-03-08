@@ -91,7 +91,6 @@ impl<'a> Device for SnpDevice<'a> {
 
         match self.snp.receive(&mut rx.packet, None, None, None, None) {
             Ok(size) => {
-                trace!("got packet of size {}: {:x?}", size, &rx.packet[..size]);
                 rx.size = size;
                 Some((rx, SnpTxToken { snp: self.snp }))
             }
@@ -144,8 +143,6 @@ impl<'a> smoltcp::phy::TxToken for SnpTxToken<'a> {
         let mut buf = [0u8; 1536];
         let packet = &mut buf[..len];
         let result = f(packet);
-
-        trace!("Transmitting {:x?}", packet);
 
         self.snp
             .transmit(0, packet, None, None, None)

@@ -37,7 +37,8 @@ impl<'a> TimestampClock<'a> {
 ///
 /// If your UEFI environment does not appear to provide a [Timestamp]
 /// protocol facility that you can put in [TimestampClock], this can be used,
-/// but you really really should use [TimestampClock] instead.
+/// but you really really should use [TimestampClock] instead. A common example of
+/// such an environment is QEMU running OVMF firmware.
 ///
 /// # Panics
 ///
