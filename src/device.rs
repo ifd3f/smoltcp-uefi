@@ -1,6 +1,6 @@
 //! This module contains [SnpDevice] and helpers for it.
 
-use core::cmp::min;
+use core::{borrow::Borrow, cmp::min};
 
 use log::error;
 use smoltcp::{
@@ -23,6 +23,10 @@ pub const DEFAULT_MAX_PACKET: usize = 1500;
 /// Here's an example of how to do that:
 ///
 /// ```no_run
+/// use smoltcp_uefi::device::SnpDevice;
+/// use uefi::boot;
+/// use uefi::proto::network::snp::SimpleNetwork;
+/// 
 /// # fn main() -> Result<(), uefi::Error> {
 /// let handle = boot::get_handle_for_protocol::<SimpleNetwork>()?;
 /// let snp = boot::open_protocol_exclusive::<SimpleNetwork>(handle)?;
@@ -43,17 +47,23 @@ pub const DEFAULT_MAX_PACKET: usize = 1500;
 /// which is by default set to [`DEFAULT_MAX_PACKET`]. Note that if you set this parameter
 /// lower than the actual packet size of the [SimpleNetwork], advertised capabilities
 /// in [`Device::capabilities`] will be adjusted to match.
-pub struct SnpDevice<'a, const MAX_PACKET: usize = DEFAULT_MAX_PACKET> {
-    snp: &'a SimpleNetwork,
+pub struct SnpDevice<Snp, const MAX_PACKET: usize = DEFAULT_MAX_PACKET>
+where
+    Snp: Borrow<SimpleNetwork>,
+{
+    snp: Snp,
 }
 
-impl<'a, const MAX_PACKET: usize> SnpDevice<'a, MAX_PACKET> {
+impl<Snp, const MAX_PACKET: usize> SnpDevice<Snp, MAX_PACKET>
+where
+    Snp: Borrow<SimpleNetwork>,
+{
     /// Create an [SnpDevice] based on the provided [SimpleNetwork].
     ///
     /// Note that this will set receive filters on the [SimpleNetwork] as well.
     /// This may error if that fails.
-    pub fn new(snp: &'a SimpleNetwork) -> Result<Self, uefi::Error> {
-        snp.receive_filters(
+    pub fn new(snp: Snp) -> Result<Self, uefi::Error> {
+        snp.borrow().receive_filters(
             ReceiveFlags::UNICAST | ReceiveFlags::MULTICAST | ReceiveFlags::BROADCAST,
             ReceiveFlags::empty(),
             false,
@@ -65,21 +75,24 @@ impl<'a, const MAX_PACKET: usize> SnpDevice<'a, MAX_PACKET> {
 
     /// Get the current MAC address configured on the underlying [SimpleNetwork].
     pub fn current_address(&self) -> EthernetAddress {
-        u2s_mac_address(&self.snp.mode().current_address)
+        u2s_mac_address(&self.snp.borrow().mode().current_address)
     }
 
     /// Get the permanent MAC address configured on the underlying [SimpleNetwork].
     pub fn permanent_address(&self) -> EthernetAddress {
-        u2s_mac_address(&self.snp.mode().permanent_address)
+        u2s_mac_address(&self.snp.borrow().mode().permanent_address)
     }
 
     /// Get a reference to the underlying [SimpleNetwork].
     pub fn snp(&self) -> &SimpleNetwork {
-        self.snp
+        self.snp.borrow()
     }
 }
 
-impl<'a, const MAX_PACKET: usize> Device for SnpDevice<'a, MAX_PACKET> {
+impl<Snp, const MAX_PACKET: usize> Device for SnpDevice<Snp, MAX_PACKET>
+where
+    Snp: Borrow<SimpleNetwork>,
+{
     type RxToken<'b>
         = SnpRxToken<MAX_PACKET>
     where
@@ -98,11 +111,12 @@ impl<'a, const MAX_PACKET: usize> Device for SnpDevice<'a, MAX_PACKET> {
             packet: [0; MAX_PACKET],
             size: 0,
         };
+        let snp = self.snp.borrow();
 
-        match self.snp.receive(&mut rx.packet, None, None, None, None) {
+        match snp.receive(&mut rx.packet, None, None, None, None) {
             Ok(size) => {
                 rx.size = size;
-                Some((rx, SnpTxToken { snp: self.snp }))
+                Some((rx, SnpTxToken { snp }))
             }
             Err(e) if e.status() == Status::NOT_READY => {
                 // NOT_READY indicates no packets received yet.
@@ -116,13 +130,18 @@ impl<'a, const MAX_PACKET: usize> Device for SnpDevice<'a, MAX_PACKET> {
     }
 
     fn transmit(&mut self, _timestamp: smoltcp::time::Instant) -> Option<Self::TxToken<'_>> {
-        Some(SnpTxToken { snp: self.snp })
+        Some(SnpTxToken {
+            snp: self.snp.borrow(),
+        })
     }
 
     fn capabilities(&self) -> smoltcp::phy::DeviceCapabilities {
         let mut caps = DeviceCapabilities::default();
         caps.medium = Medium::Ethernet;
-        caps.max_transmission_unit = min(self.snp.mode().max_packet_size as usize, MAX_PACKET);
+        caps.max_transmission_unit = min(
+            self.snp.borrow().mode().max_packet_size as usize,
+            MAX_PACKET,
+        );
         caps
     }
 }
